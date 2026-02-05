@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>L'ARÈNE DE GILLES - V4.3</title>
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root { --gold: #D4AF37; --bg: #0a0a0a; --panel: #1a1a1a; --red: #ff4444; }
+        * { touch-action: manipulation; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; display: flex; flex-direction: column; min-height: 100vh; overflow-x: hidden; }
+        
+        #coach-header { background: var(--panel); padding: 12px; border-bottom: 2px solid var(--gold); display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; position: sticky; top: 0; z-index: 100; }
+        #timer { color: var(--gold); font-size: 1.2rem; font-family: monospace; border: 1px solid var(--gold); padding: 4px 10px; border-radius: 4px; background: black; min-width: 90px; text-align: center; }
+        
+        #gilles-arena { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; gap: 10px; }
+        .stave-box { background: white; padding: 10px; border-radius: 8px; border: 3px solid var(--gold); width: 100%; max-width: 500px; height: 130px; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
+        .next-measure { opacity: 0.25; filter: grayscale(1) blur(1px); }
+        
+        .btn-group { display: flex; gap: 8px; width: 100%; max-width: 500px; margin-top: 5px; }
+        .btn { flex: 1; padding: 12px; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; text-transform: uppercase; font-size: 0.8rem; min-height: 48px; }
+        .btn-start { background: var(--gold); color: black; }
+        .btn-pause { background: #555; color: white; }
+        .btn-stop { background: var(--red); color: white; flex: 0 0 60px; font-size: 1.2rem; }
+        .btn-rec { background: #8e0000; color: white; }
+        .recording { animation: pulse 1.5s infinite; background: #ff0000 !important; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .control { display: flex; flex-direction: column; gap: 4px; min-width: 140px; flex: 1; }
+        label { color: var(--gold); font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
+        select { background: #333; color: white; border: 1px solid var(--gold); padding: 8px; border-radius: 4px; font-size: 0.85rem; }
+        input[type="range"] { width: 100%; accent-color: var(--gold); height: 25px; }
+        
+        .footer-bar { padding: 15px; text-align: center; background: var(--panel); border-top: 1px solid var(--gold); margin-top: auto;}
+        .copyright { font-size: 0.85rem; color: var(--gold); font-weight: bold; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+<header id="coach-header">
+    <div id="timer">60:00</div>
+    
+    <div class="control">
+        <label>Tonalité (Cycle)</label>
+        <select id="root-note" onchange="resetMeasures()">
+            <option value="C">DO (C) - 0♮</option>
+            <option value="G">SOL (G) - 1♯ (Fa#)</option>
+            <option value="D">RÉ (D) - 2♯ (Fa#, Do#)</option>
+            <option value="A">LA (A) - 3♯</option>
+            <option value="E">MI (E) - 4♯</option>
+            <option value="B">SI (B) - 5♯</option>
+            <option value="F#">FA♯ (F#) - 6♯</option>
+            <option value="F">FA (F) - 1♭ (Sib)</option>
+            <option value="Bb">SI♭ (Bb) - 2♭ (Sib, Mib)</option>
+            <option value="Eb">MI♭ (Eb) - 3♭</option>
+            <option value="Ab">LA♭ (Ab) - 4♭</option>
+            <option value="Db">RÉ♭ (Db) - 5♭</option>
+        </select>
+    </div>
+
+    <div class="control">
+        <label>Phase d'étude</label>
+        <select id="week" onchange="resetMeasures()">
+            <option value="1">S1: Tonique seule</option>
+            <option value="2">S2: Gamme aléatoire</option>
+            <option value="3">S3: Jeu & Silences</option>
+            <option value="4" selected>S4: Rythmique avancée</option>
+        </select>
+    </div>
+
+    <div class="control">
+        <label>Tempo: <span id="bpm-val">60</span> BPM</label>
+        <input type="range" id="bpm" min="40" max="180" value="60" oninput="updateBPM(this.value)">
+    </div>
+</header>
+
+<main id="gilles-arena">
+    <div id="m1" class="stave-box"></div>
+    <div id="m2" class="stave-box next-measure"></div>
+
+    <div class="btn-group">
+        <button id="btnStart" class="btn btn-start" onclick="togglePlay()">Démarrer</button>
+        <button id="btnPause" class="btn btn-pause" onclick="pauseApp()" style="display:none;">Pause</button>
+        <button id="btnStop" class="btn btn-stop" onclick="stopEverything()">■</button>
+        <button id="btnRec" class="btn btn-rec" onclick="toggleRecord()">REC</button>
+    </div>
+</main>
+
+<footer class="footer-bar">
+    <div class="copyright">© Gilles Gromat - ggromat@gmail.com</div>
+</footer>
+
+<script>
+const { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Accidental } = Vex.Flow;
+let isPlaying = false, isRecording = false, timeLeft = 3600, timerInterval;
+let currentNotes = [], nextNotes = [], metronomeSynth, pianoSynth, recorder, chunks = [];
+
+const SCALES = {
+    "C": ["C4","D4","E4","F4","G4","A4","B4","C5"], "G": ["G3","A3","B3","C4","D4","E4","F#4","G4"],
+    "D": ["D4","E4","F#4","G4","A4","B4","C#5","D5"], "A": ["A3","B3","C#4","D4","E4","F#4","G#4","A4"],
+    "E": ["E4","F#4","G#4","A4","B4","C#5","D#5","E5"], "B": ["B3","C#4","D#4","E4","F#4","G#4","A#4","B4"],
+    "F#":["F#3","G#3","A#3","B3","C#4","D#4","E#4","F#4"], "F": ["F4","G4","A4","Bb4","C5","D5","E5","F5"],
+    "Bb":["Bb3","C4","D4","Eb4","F4","G4","A4","Bb4"], "Eb":["Eb4","F4","G4","Ab4","Bb4","C5","D5","Eb5"],
+    "Ab":["Ab3","Bb3","C4","Db4","Eb4","F4","G4","Ab4"], "Db":["Db4","Eb4","F4","Gb4","Ab4","Bb4","C5","Db5"]
+};
+
+function initAudio() {
+    if (metronomeSynth) return;
+    metronomeSynth = new Tone.NoiseSynth({noise:{type:"pink"}, envelope:{attack:0.001, decay:0.05}}).toDestination();
+    metronomeSynth.volume.value = -35;
+    pianoSynth = new Tone.FMSynth({modulationIndex:2, envelope:{attack:0.1, decay:0.3, sustain:0.4, release:0.8}}).toDestination();
+    pianoSynth.volume.value = -18;
+}
+
+function generateNotes() {
+    const week = document.getElementById('week').value;
+    const pool = SCALES[document.getElementById('root-note').value];
+    let n = [], t = 0;
+    while (t < 4) {
+        let p = (week == 1) ? pool[0] : pool[Math.floor(Math.random() * pool.length)];
+        if (week == 4 && Math.random() > 0.4 && t <= 3.5) {
+            n.push({ pitch: p, type: "8", dur: "8n", val: 0.5 });
+            n.push({ pitch: pool[Math.floor(Math.random() * pool.length)], type: "8", dur: "8n", val: 0.5 });
+            t += 1;
+        } else {
+            let type = (week == 3 && Math.random() > 0.8) ? "qr" : "q";
+            n.push({ pitch: p, type: type, dur: "4n", val: 1 });
+            t += 1;
+        }
+    }
+    return n;
+}
+
+function draw(id, notes) {
+    const div = document.getElementById(id); div.innerHTML = "";
+    const renderer = new Renderer(div, Renderer.Backends.SVG);
+    const w = div.offsetWidth;
+    renderer.resize(w, 120);
+    const ctx = renderer.getContext();
+    ctx.scale(w/540, w/540);
+    const stave = new Stave(10, 0, 500).addClef("treble").setContext(ctx).draw();
+    const vNotes = notes.map(x => {
+        const m = x.pitch.match(/^([A-G][#b]?)(\d)$/);
+        const sn = new StaveNote({keys:[`${m[1].toLowerCase()}/${m[2]}`], duration: x.type.replace('qr', 'q')});
+        if(x.type === "qr") sn.setGhost(true); 
+        if(m[1].includes("#")) sn.addModifier(new Accidental("#"), 0);
+        if(m[1].includes("b")) sn.addModifier(new Accidental("b"), 0);
+        return sn;
+    });
+    const voice = new Voice({num_beats:4, beat_value:4}).addTickables(vNotes);
+    new Formatter().joinVoices([voice]).format([voice], 400);
+    voice.draw(ctx, stave);
+    Beam.generateBeams(vNotes.filter(n => n.duration === "8")).forEach(b => b.setContext(ctx).draw());
+}
+
+async function togglePlay() {
+    await Tone.start();
+    initAudio();
+    if (isPlaying) return;
+    isPlaying = true;
+    document.getElementById('btnStart').style.display = "none";
+    document.getElementById('btnPause').style.display = "inline-block";
+    if(currentNotes.length === 0) { currentNotes = generateNotes(); nextNotes = generateNotes(); }
+    draw('m1', currentNotes); draw('m2', nextNotes);
+    Tone.Transport.scheduleRepeat((time) => {
+        for(let i=0; i<4; i++) metronomeSynth.triggerAttackRelease("16n", time + i*Tone.Time("4n"));
+        let elapsed = 0;
+        currentNotes.forEach(n => {
+            if (n.type !== "qr") pianoSynth.triggerAttackRelease(n.pitch, n.dur, time + Tone.Time(elapsed));
+            elapsed += n.val;
+        });
+        Tone.Draw.schedule(() => {
+            currentNotes = nextNotes; nextNotes = generateNotes();
+            draw('m1', currentNotes); draw('m2', nextNotes);
+        }, time + Tone.Time("1m") - 0.1);
+    }, "1m");
+    Tone.Transport.start();
+    timerInterval = setInterval(() => { if(timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = `${Math.floor(timeLeft/60)}:${(timeLeft%60).toString().padStart(2,'0')}`; }}, 1000);
+}
+
+function pauseApp() {
+    Tone.Transport.pause(); Tone.Transport.cancel();
+    isPlaying = false; clearInterval(timerInterval);
+    document.getElementById('btnStart').innerText = "Reprendre";
+    document.getElementById('btnStart').style.display = "inline-block";
+    document.getElementById('btnPause').style.display = "none";
+}
+
+function stopEverything() {
+    Tone.Transport.stop(); Tone.Transport.cancel();
+    isPlaying = false; clearInterval(timerInterval); timeLeft = 3600;
+    currentNotes = []; nextNotes = [];
+    document.getElementById('timer').innerText = "60:00";
+    document.getElementById('btnStart').innerText = "Démarrer";
+    document.getElementById('btnStart').style.display = "inline-block";
+    document.getElementById('btnPause').style.display = "none";
+    document.getElementById('m1').innerHTML = ""; document.getElementById('m2').innerHTML = "";
+}
+
+function updateBPM(v) { document.getElementById('bpm-val').innerText = v; Tone.Transport.bpm.value = v; }
+function resetMeasures() { if(!isPlaying) { stopEverything(); } }
+
+async function toggleRecord() {
+    if (!isRecording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'session_gilles.webm'; a.click();
+            chunks = [];
+        };
+        recorder.start(); document.getElementById('btnRec').innerText = "STOP REC";
+        document.getElementById('btnRec').classList.add('recording'); isRecording = true;
+    } else {
+        recorder.stop(); document.getElementById('btnRec').innerText = "REC";
+        document.getElementById('btnRec').classList.remove('recording'); isRecording = false;
+    }
+}
+</script>
+</body>
+</html>
